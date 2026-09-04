@@ -3,7 +3,10 @@ https://www.data.gouv.fr/datasets/parcelles-certifiees-en-agriculture-biologique
 
 https://www.data.gouv.fr/api/1/datasets/r/2eb61d76-ebb1-49a9-aaaa-ccd4bb141f93
 
+if the database is not available on the official data.gouv.fr
+you may find it here otherwise
 
+https://mega.nz/file/V58DnKqa#jkh7pUqpFCRMSJ5gPMcOl3xXjtDdM6vd318U-uztdHQ
 
 ogrinfo -so "cartobio-parcelles-2025-francemet-2154.gpkg" 2>&1 | head -40
 
