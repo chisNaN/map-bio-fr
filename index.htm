@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>CartoBio</title>
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
+
+  <!-- Leaflet.VectorGrid -->
+  <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js"></script>
+
+  <script>
+    // Carte
+    const map = L.map('map').setView([46.5, 2.5], 7);
+
+    // Fond OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Parcelles CartoBio servies par Martin
+    const parcelles = L.vectorGrid.protobuf(
+      'http://localhost:3000/parcelles/{z}/{x}/{y}',
+      {
+        vectorTileLayerStyles: {
+          parcelles: {
+            weight: 0.5,
+            fill: true,
+            fillOpacity: 0.3
+          }
+        }
+      }
+    );
+
+    parcelles.addTo(map);
+  </script>
+
+</body>
+</html>
