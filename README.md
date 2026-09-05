@@ -1,76 +1,89 @@
 # map-bio-fr
 
-Application web cartographique permettant d'afficher les **parcelles déclarées en agriculture biologique en France métropolitaine**.
+A small GIS web application displaying agricultural parcels certified as organic in metropolitan France.
 
-Ce projet met en œuvre une chaîne SIG web complète :
+The purpose of this project is mainly educational: it demonstrates how several GIS technologies can be combined to build a web mapping application from a large geospatial dataset.
+
+## Architecture
 
 ```text
-GeoPackage
-    │
-    │ GDAL / ogr2ogr
-    ▼
+GeoPackage (.gpkg)
+        │
+        │ GDAL / ogr2ogr
+        ▼
 PostgreSQL + PostGIS
-    │
-    │ Martin
-    ▼
-Tuiles vectorielles MVT
-    │
-    │ Leaflet + VectorGrid
-    ▼
-Navigateur web
+        │
+        │ Martin
+        ▼
+MVT / Vector Tiles
+        │
+        │ Leaflet + Leaflet.VectorGrid
+        ▼
+Web browser
 ```
 
-L'objectif du projet est principalement de mettre en pratique l'intégration de plusieurs briques d'un système SIG web :
+### Technologies
 
-- **PostgreSQL** : base de données relationnelle
-- **PostGIS** : extension spatiale de PostgreSQL
-- **DBeaver** : interface d'administration de la base
-- **GDAL** : manipulation et import des données géographiques
-- **Martin** : serveur de tuiles vectorielles
-- **Leaflet** : bibliothèque cartographique côté navigateur
-- **Leaflet.VectorGrid** : affichage des tuiles vectorielles MVT
-- **Docker / Docker Compose** : exécution des services
+- **GDAL / ogr2ogr** — import and inspect geospatial data
+- **PostgreSQL** — relational database
+- **PostGIS** — spatial database extension for PostgreSQL
+- **DBeaver** — graphical database client
+- **Martin** — vector tile server
+- **MapLibre Martin** — serves PostGIS data as Mapbox Vector Tiles (MVT)
+- **Leaflet** — web mapping library
+- **Leaflet.VectorGrid** — displays vector tiles in Leaflet
+- **Docker / Docker Compose** — runs PostgreSQL/PostGIS and Martin
 
 ---
 
-# 1. Prérequis
+# 1. Prerequisites
 
-Le projet est réalisé sur un **MacBook Pro M1**.
+You need:
 
-Les éléments suivants sont déjà installés :
-
+- macOS, Linux or Windows
 - Docker
 - Docker Compose
-- Homebrew
+- Homebrew on macOS
+- GDAL
+- a web browser
+
+DBeaver is optional but recommended for inspecting the PostgreSQL/PostGIS database.
 
 ---
 
-# 2. Créer le projet
+# 2. Create the project
 
-Créer le répertoire du projet :
+Create the project directory:
 
 ```bash
 mkdir map-bio-fr
 cd map-bio-fr
 ```
 
-Le projet aura progressivement cette structure :
+Create the frontend directory:
+
+```bash
+mkdir frontend
+```
+
+The project will eventually look approximately like this:
 
 ```text
 map-bio-fr/
 ├── docker-compose.yml
+├── README.md
 ├── cartobio-parcelles-2025-francemet-2154.gpkg
 └── frontend/
     └── index.htm
 ```
 
+The GeoPackage is not included in the Git repository.
+
 ---
 
-# 3. PostgreSQL + PostGIS + Martin avec Docker Compose
+# 3. PostgreSQL + PostGIS + Martin
 
-PostgreSQL et Martin sont exécutés dans des conteneurs Docker.
-
-Le fichier `docker-compose.yml` utilisé par le projet est le suivant :
+Create `docker-compose.yml`:
 
 ```yaml
 services:
@@ -103,95 +116,45 @@ volumes:
   postgis_data:
 ```
 
-## 3.1 PostgreSQL + PostGIS
+The `platform: linux/amd64` setting allows the PostgreSQL/PostGIS container to run on Apple Silicon Macs through Docker's architecture emulation.
 
-Le service :
-
-```yaml
-postgis:
-  image: postgis/postgis:16-3.5
-```
-
-utilise l'image PostgreSQL avec PostGIS.
-
-Sur le MacBook Pro M1, le projet force l'utilisation de l'architecture AMD64 :
-
-```yaml
-platform: linux/amd64
-```
-
-Docker Desktop utilise alors son mécanisme de virtualisation/émulation pour exécuter cette image sur Apple Silicon.
-
-Le conteneur est nommé :
-
-```text
-postgis_container
-```
-
-PostgreSQL est exposé sur :
-
-```text
-localhost:5432
-```
-
-Les paramètres de connexion sont :
-
-```text
-Host       : localhost
-Port       : 5432
-Database   : postgres
-User       : postgres
-Password   : mypassword
-```
-
-Les données PostgreSQL sont stockées dans un volume Docker :
-
-```text
-postgis_data
-```
-
-Cela permet de conserver les données de la base indépendamment du cycle de vie du conteneur.
+Martin is already part of the Docker Compose stack from the beginning. Its role will become useful once the PostGIS table has been populated.
 
 ---
 
-# 4. Démarrer les conteneurs
+# 4. Start the containers
 
-Depuis la racine du projet :
+Start PostgreSQL/PostGIS and Martin:
 
 ```bash
 docker compose up -d
 ```
 
-Vérifier les conteneurs :
+Check that both containers are running:
 
 ```bash
 docker ps
 ```
 
-On doit retrouver notamment :
+You should see:
 
 ```text
 postgis_container
 martin
 ```
 
-La stack est donc déjà composée des deux services :
+The services are exposed on:
 
 ```text
-Docker Compose
-│
-├── postgis_container
-│       └── PostgreSQL + PostGIS
-│
-└── martin
-        └── serveur de tuiles
+PostgreSQL/PostGIS → localhost:5432
+Martin             → localhost:3000
 ```
 
 ---
 
-# 5. Vérifier que PostGIS est installé
+# 5. Verify PostGIS
 
-Une première vérification consiste à demander directement à PostgreSQL la version de PostGIS :
+Check the installed PostGIS version:
 
 ```bash
 docker exec -it postgis_container \
@@ -199,18 +162,7 @@ psql -U postgres -d postgres \
 -c "SELECT PostGIS_Version();"
 ```
 
-Une réponse similaire à :
-
-```text
- postgis_version
-----------------
- 3.5.x
-(1 row)
-```
-
-confirme que PostGIS est disponible.
-
-On peut également vérifier l'extension PostgreSQL :
+You can also check that the PostGIS extension is installed:
 
 ```bash
 docker exec -it postgis_container \
@@ -220,118 +172,82 @@ psql -U postgres -d postgres \
 
 ---
 
-# 6. Installer DBeaver
+# 6. Connect to PostgreSQL with DBeaver
 
-DBeaver permet de travailler graphiquement avec PostgreSQL.
+DBeaver can be downloaded from the official website.
 
-Télécharger **DBeaver Community** depuis le site officiel :
+[DBeaver official download page](https://dbeaver.io/download/?utm_source=chatgpt.com)
 
-https://dbeaver.io/download/
-
-Pour le MacBook Pro M1, télécharger la version :
+Create a new PostgreSQL connection with:
 
 ```text
-macOS → Apple Silicon
+Host:       localhost
+Port:       5432
+Database:   postgres
+Username:   postgres
+Password:   mypassword
 ```
 
-Installer ensuite l'application normalement.
+DBeaver is useful for visually inspecting:
 
-## 6.1 Créer la connexion PostgreSQL
-
-Dans DBeaver, créer une connexion PostgreSQL avec :
-
-```text
-Host       : localhost
-Port       : 5432
-Database   : postgres
-Username   : postgres
-Password   : mypassword
-```
-
-DBeaver permet notamment de consulter les schémas, tables, colonnes et données de PostGIS.
+- schemas
+- tables
+- columns
+- geometry columns
+- indexes
+- spatial data
 
 ---
 
-# 7. Télécharger les données CartoBio
+# 7. Download the CartoBio dataset
 
-Le jeu de données utilisé est celui des parcelles certifiées en agriculture biologique disponibles sur CartoBio.
+The project uses the 2025 metropolitan-France CartoBio dataset.
 
-## Source officielle
+The dataset is provided by the French government through data.gouv.fr.
 
-La page officielle du jeu de données est :
+[CartoBio dataset on data.gouv.fr](https://www.data.gouv.fr/datasets/parcelles-certifiees-en-agriculture-biologique-sur-cartobio?utm_source=chatgpt.com)
 
-https://www.data.gouv.fr/datasets/parcelles-certifiees-en-agriculture-biologique-sur-cartobio
+The specific resource used by this project is:
 
-La ressource utilisée pour le projet :
+[2025 metropolitan-France GeoPackage resource](https://www.data.gouv.fr/api/1/datasets/r/2eb61d76-ebb1-49a9-aaaa-ccd4bb141f93?utm_source=chatgpt.com)
 
-https://www.data.gouv.fr/api/1/datasets/r/2eb61d76-ebb1-49a9-aaaa-ccd4bb141f93
-
-Le fichier utilisé est :
+The resulting file is:
 
 ```text
 cartobio-parcelles-2025-francemet-2154.gpkg
 ```
 
-Placer le fichier à la racine du projet :
-
-```text
-map-bio-fr/
-├── cartobio-parcelles-2025-francemet-2154.gpkg
-└── docker-compose.yml
-```
-
-## Miroir de secours
-
-Si la ressource n'est plus disponible sur data.gouv.fr, un miroir peut être utilisé :
-
-https://mega.nz/file/V58DnKqa#jkh7pUqpFCRMSJ5gPMcOl3xXjtDdM6vd318U-uztdHQ
-
-**La source officielle data.gouv.fr doit être privilégiée lorsque le fichier y est disponible.**
-
----
-
-# 8. Installer GDAL
-
-GDAL est utilisé pour manipuler les données géographiques.
-
-Avec Homebrew :
-
-```bash
-brew install gdal
-```
-
-Vérifier l'installation :
-
-```bash
-ogrinfo --version
-```
-
-GDAL fournit notamment les deux commandes utilisées dans ce projet :
-
-```text
-ogrinfo
-ogr2ogr
-```
-
-`ogrinfo` permet d'inspecter les données.
-
-`ogr2ogr` permet notamment de convertir et d'importer les données dans PostgreSQL/PostGIS.
-
----
-
-# 9. Inspecter le GeoPackage
-
-Le fichier `.gpkg` est un **GeoPackage**.
-
-Un GeoPackage est un format standard OGC basé sur SQLite permettant notamment de stocker des données vectorielles, leurs attributs, leurs géométries et leur système de coordonnées.
-
-La couche utilisée dans ce projet est :
+The file contains the following layer:
 
 ```text
 cartobio_parcelles_2025_francemet_2154
 ```
 
-On peut l'inspecter avec :
+The dataset uses **EPSG:2154 (Lambert-93)**.
+
+> The large GeoPackage is intentionally not committed to this repository.
+
+---
+
+# 8. Install GDAL
+
+On macOS:
+
+```bash
+brew install gdal
+```
+
+Verify the installation:
+
+```bash
+ogrinfo --version
+```
+
+---
+
+# 9. Inspect the GeoPackage
+
+Inspect the layer:
 
 ```bash
 ogrinfo -so \
@@ -339,11 +255,29 @@ ogrinfo -so \
   cartobio_parcelles_2025_francemet_2154
 ```
 
+The dataset contains approximately:
+
+```text
+1,232,528 features
+```
+
+The geometry type is:
+
+```text
+Polygon
+```
+
+and the CRS is:
+
+```text
+EPSG:2154
+```
+
 ---
 
-# 10. Compter les parcelles dans le GeoPackage
+# 10. Count the features with GDAL
 
-Le GeoPackage peut être interrogé directement avec le dialecte SQLite :
+GDAL can use SQLite to query the GeoPackage directly.
 
 ```bash
 ogrinfo -dialect SQLite \
@@ -351,25 +285,19 @@ ogrinfo -dialect SQLite \
   cartobio-parcelles-2025-francemet-2154.gpkg
 ```
 
-Le fichier utilisé dans ce projet contient environ :
+This should return approximately:
 
 ```text
-1 232 528 parcelles
+1232528
 ```
 
-Cette étape permet notamment de connaître le volume de données avant de commencer l'import dans PostGIS.
+This is a useful way to verify the source dataset before importing it into PostgreSQL.
 
 ---
 
-# 11. Créer le schéma `bio`
+# 11. Create the PostGIS schema
 
-Les données CartoBio seront stockées dans un schéma PostgreSQL dédié nommé :
-
-```text
-bio
-```
-
-Créer le schéma :
+Create a dedicated `bio` schema:
 
 ```bash
 docker exec -it postgis_container \
@@ -377,19 +305,23 @@ psql -U postgres -d postgres \
 -c "CREATE SCHEMA IF NOT EXISTS bio;"
 ```
 
-La table finale sera :
+The final table will be:
 
 ```text
 bio.parcelles
 ```
 
+with the geometry column:
+
+```text
+geom
+```
+
 ---
 
-# 12. Faire un import de test avec 100 parcelles
+# 12. Test the import with 100 features
 
-Avant de lancer l'import complet de plus d'un million de parcelles, on effectue un test avec seulement 100 entités.
-
-La commande utilisée est :
+Before importing more than one million polygons, perform a small test import.
 
 ```bash
 ogr2ogr \
@@ -406,71 +338,25 @@ ogr2ogr \
   -progress
 ```
 
-## 12.1 Paramètres importants
+### Important
 
-### `-f PostgreSQL`
+`-limit 100` is what limits the import to 100 features.
 
-Indique que PostgreSQL est la destination.
-
-### `PG:host=localhost...`
-
-Connexion à PostgreSQL :
+By contrast:
 
 ```text
-Host     : localhost
-Port     : 5432
-Database : postgres
-User     : postgres
-Password : mypassword
+-gt 200000
 ```
 
-### `-nln bio.test_parcelles`
+does **not** limit the number of imported features.
 
-Définit le nom de la table de destination :
-
-```text
-bio.test_parcelles
-```
-
-### `-lco GEOMETRY_NAME=geom`
-
-Définit le nom de la colonne géométrique :
-
-```text
-geom
-```
-
-### `-lco SPATIAL_INDEX=GIST`
-
-Demande la création d'un index spatial GiST.
-
-### `--config PG_USE_COPY YES`
-
-Demande à GDAL d'utiliser PostgreSQL `COPY` pour accélérer l'import.
-
-### `-gt 200000`
-
-Définit la taille des groupes de transactions GDAL.
-
-**Ce paramètre ne limite pas le nombre de parcelles importées.**
-
-### `-limit 100`
-
-C'est lui qui limite volontairement l'import à :
-
-```text
-100 entités
-```
-
-### `-progress`
-
-Affiche la progression de l'opération.
+It controls the transaction group size used during the import.
 
 ---
 
-# 13. Vérifier l'import des 100 parcelles
+# 13. Verify the test table
 
-Une fois l'import terminé :
+Count the imported features:
 
 ```bash
 docker exec -it postgis_container \
@@ -478,22 +364,13 @@ psql -U postgres -d postgres \
 -c "SELECT count(*) FROM bio.test_parcelles;"
 ```
 
-Résultat attendu :
+Expected result:
 
 ```text
- count
--------
-   100
-(1 row)
+100
 ```
 
-On peut également examiner la table dans DBeaver.
-
----
-
-# 14. Vérifier les géométries
-
-On peut vérifier le type des géométries :
+Check the geometry type:
 
 ```bash
 docker exec -it postgis_container \
@@ -501,7 +378,7 @@ psql -U postgres -d postgres \
 -c "SELECT GeometryType(geom), COUNT(*) FROM bio.test_parcelles GROUP BY GeometryType(geom);"
 ```
 
-On peut vérifier le SRID :
+Check the SRID:
 
 ```bash
 docker exec -it postgis_container \
@@ -509,17 +386,23 @@ psql -U postgres -d postgres \
 -c "SELECT ST_SRID(geom), COUNT(*) FROM bio.test_parcelles GROUP BY ST_SRID(geom);"
 ```
 
-Pour les données utilisées dans ce projet, les géométries sont des polygones et utilisent le système de coordonnées :
+The expected geometry is:
 
 ```text
-EPSG:2154
+ST_Polygon
+```
+
+with SRID:
+
+```text
+2154
 ```
 
 ---
 
-# 15. Supprimer la table de test
+# 14. Remove the test table
 
-Une fois le test validé :
+Once the test import has been successfully validated:
 
 ```bash
 docker exec -it postgis_container \
@@ -527,21 +410,11 @@ psql -U postgres -d postgres \
 -c "DROP TABLE bio.test_parcelles;"
 ```
 
-La table temporaire n'est plus nécessaire.
-
 ---
 
-# 16. Importer toutes les parcelles
+# 15. Import the complete dataset
 
-Une fois le test validé, on lance l'import complet.
-
-La différence essentielle avec la commande précédente est la suppression de :
-
-```text
--limit 100
-```
-
-Commande finale :
+Now import all approximately 1.23 million parcels.
 
 ```bash
 ogr2ogr \
@@ -557,31 +430,21 @@ ogr2ogr \
   -progress
 ```
 
-La destination est maintenant :
+Notice that there is **no**:
 
 ```text
-bio.parcelles
+-limit 100
 ```
 
-et non plus :
+This time the entire layer is imported.
 
-```text
-bio.test_parcelles
-```
-
-L'opération importe les quelque :
-
-```text
-1 232 528 parcelles
-```
-
-dans PostGIS.
+Also, no custom `FID` is specified.
 
 ---
 
-# 17. Vérifier le nombre final de parcelles
+# 16. Verify the final import
 
-Une fois l'import terminé :
+Count the rows:
 
 ```bash
 docker exec -it postgis_container \
@@ -589,17 +452,17 @@ psql -U postgres -d postgres \
 -c "SELECT count(*) FROM bio.parcelles;"
 ```
 
-Le nombre doit être cohérent avec celui obtenu précédemment dans le GeoPackage :
+Expected result:
 
 ```text
-1 232 528
+1232528
 ```
+
+The exact number may vary if the source dataset is updated.
 
 ---
 
-# 18. Vérifier la structure de la table
-
-Afficher les colonnes :
+# 17. Inspect the table structure
 
 ```bash
 docker exec -it postgis_container \
@@ -607,13 +470,15 @@ psql -U postgres -d postgres \
 -c "\d bio.parcelles"
 ```
 
-La colonne géométrique doit notamment être :
+The table should contain the original attributes and a geometry column named:
 
 ```text
 geom
 ```
 
-L'index spatial créé par GDAL peut également être vérifié avec :
+---
+
+# 18. Check the indexes
 
 ```bash
 docker exec -it postgis_container \
@@ -621,278 +486,152 @@ psql -U postgres -d postgres \
 -c "SELECT indexname FROM pg_indexes WHERE tablename = 'parcelles';"
 ```
 
+A spatial GiST index should be present.
+
+The spatial index is important because PostgreSQL/PostGIS needs to efficiently locate geometries spatially.
+
 ---
 
-# 19. Martin : serveur de tuiles vectorielles
+# 19. Martin
 
-Une fois les données disponibles dans PostGIS, il faut pouvoir les transmettre efficacement au navigateur.
+Martin is a vector tile server designed to serve geospatial data, including PostGIS data, as vector tiles.
 
-Le projet utilise **Martin**, le serveur de tuiles de MapLibre.
-
-Site officiel :
-
-https://maplibre.org/martin/
-
-Martin se connecte à PostgreSQL/PostGIS et permet d'exposer les données sous forme de **tuiles vectorielles Mapbox Vector Tiles (MVT)**.
-
-Le principe devient :
+In this project, Martin sits between PostgreSQL/PostGIS and the web browser:
 
 ```text
 PostGIS
    │
-   │ requête
    ▼
-Martin
+ Martin
    │
-   │ MVT
    ▼
-Navigateur
+MVT / Vector Tiles
+   │
+   ▼
+Leaflet
 ```
 
----
+Martin automatically discovers suitable PostGIS tables.
 
-# 20. Martin dans Docker Compose
-
-Martin est déjà présent dans le `docker-compose.yml` du projet :
-
-```yaml
-martin:
-  image: ghcr.io/maplibre/martin:latest
-  container_name: martin
-  restart: always
-  environment:
-    DATABASE_URL: postgres://postgres:mypassword@postgis:5432/postgres
-  ports:
-    - "3000:3000"
-  depends_on:
-    - postgis
-```
-
-Martin écoute donc sur :
-
-```text
-http://localhost:3000
-```
-
-### Connexion à PostgreSQL
-
-Martin utilise :
-
-```text
-postgres://postgres:mypassword@postgis:5432/postgres
-```
-
-Le point important est :
-
-```text
-@postgis:5432
-```
-
-`postgis` est le nom du **service Docker Compose**.
-
-Martin et PostgreSQL communiquent donc à l'intérieur du réseau Docker.
-
-Il ne faut pas utiliser `localhost` dans cette URL pour désigner le conteneur PostgreSQL.
-
----
-
-# 21. Vérifier le catalogue Martin
-
-Ouvrir :
-
-```text
-http://localhost:3000/catalog
-```
-
-Martin doit détecter la table :
+The PostGIS table:
 
 ```text
 bio.parcelles
 ```
 
-et proposer notamment une source :
+therefore becomes available through Martin.
+
+---
+
+# 20. Check the Martin catalog
+
+Open:
+
+```text
+http://localhost:3000/catalog
+```
+
+The catalog should contain an entry corresponding to:
 
 ```text
 parcelles
 ```
 
-correspondant à :
+The important part is:
 
 ```text
 bio.parcelles.geom
 ```
 
-Le catalogue permet ainsi de vérifier que Martin voit correctement la table PostGIS.
+This confirms that Martin has discovered the PostGIS table and its geometry column.
 
 ---
 
-# 22. URL des tuiles vectorielles
+# 21. Vector tile endpoint
 
-La source Martin :
+Martin exposes the `parcelles` layer as vector tiles.
 
-```text
-parcelles
-```
-
-est accessible sous forme de tuiles :
+The template URL is:
 
 ```text
 http://localhost:3000/parcelles/{z}/{x}/{y}
 ```
 
-Les trois paramètres représentent :
+where:
 
-```text
-z = niveau de zoom
-x = colonne de tuile
-y = ligne de tuile
-```
+- `z` = zoom level
+- `x` = tile column
+- `y` = tile row
 
-Les valeurs sont normalement remplacées automatiquement par le client cartographique.
-
-Par exemple, une requête réelle peut ressembler à :
+For example, a concrete tile request could look like:
 
 ```text
 http://localhost:3000/parcelles/6/32/22
 ```
 
-Le résultat est une tuile vectorielle binaire au format MVT.
+The response is an MVT / Protocol Buffer binary payload.
+
+The `{z}/{x}/{y}` placeholders are normally replaced by the mapping library rather than typed literally into the browser.
 
 ---
 
-# 23. Créer le frontend Leaflet
+# 22. Create the frontend
 
-Créer le répertoire :
-
-```bash
-mkdir frontend
-```
-
-Puis :
-
-```bash
-cd frontend
-```
-
-Créer :
+Create:
 
 ```text
-index.htm
+frontend/index.htm
 ```
 
-La structure devient :
+The frontend uses:
 
-```text
-map-bio-fr/
-├── docker-compose.yml
-├── cartobio-parcelles-2025-francemet-2154.gpkg
-└── frontend/
-    └── index.htm
-```
+- Leaflet
+- Leaflet.VectorGrid
+- OpenStreetMap
+- Martin
 
 ---
 
-# 24. Instancier Leaflet
+# 23. Leaflet
 
-Le fichier `index.htm` utilise Leaflet depuis le CDN `unpkg`.
-
-Aucun attribut `integrity` ou `crossorigin` n'est utilisé dans cette version.
+Include Leaflet from the CDN:
 
 ```html
-<!DOCTYPE html>
-<html lang="fr">
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+>
 
-<head>
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
 
-  <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  >
-
-  <title>CartoBio</title>
-
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  >
-
-  <style>
-
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    #map {
-      width: 100%;
-      height: 100%;
-    }
-
-  </style>
-
-</head>
-
-<body>
-
-  <div id="map"></div>
-
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-  </script>
-
-  <script
-    src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js">
-  </script>
-
-  <script>
-
-    const map = L.map('map').setView(
-      [46.5, 2.5],
-      6
-    );
-
-    L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {
-        attribution: '&copy; OpenStreetMap contributors'
-      }
-    ).addTo(map);
-
-
-    const parcelles = L.vectorGrid.protobuf(
-      'http://localhost:3000/parcelles/{z}/{x}/{y}',
-      {
-        vectorTileLayerStyles: {
-          parcelles: {
-            fill: true,
-            fillOpacity: 0.15,
-            weight: 0.5
-          }
-        },
-
-        minZoom: 8,
-
-        interactive: true
-      }
-    ).addTo(map);
-
-  </script>
-
-</body>
-
-</html>
+<script
+  src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js">
+</script>
 ```
+
+No `integrity` or `crossorigin` attributes are required here.
 
 ---
 
-# 25. Comprendre `L.vectorGrid.protobuf`
+# 24. Initialize the map
 
-Le code :
+```javascript
+const map = L.map('map').setView([46.5, 2.5], 6);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+```
+
+The initial map is centered approximately on metropolitan France.
+
+---
+
+# 25. Display the Martin vector tiles
+
+Leaflet.VectorGrid can consume Martin's MVT endpoint:
 
 ```javascript
 const parcelles = L.vectorGrid.protobuf(
@@ -905,73 +644,35 @@ const parcelles = L.vectorGrid.protobuf(
         weight: 0.5
       }
     },
-
     minZoom: 8,
-
     interactive: true
   }
 ).addTo(map);
 ```
 
-connecte directement Leaflet à Martin.
+### Why `minZoom: 8`?
 
-La chaîne est :
+The dataset contains more than one million polygons.
 
-```text
-Leaflet
-   │
-   │ HTTP
-   ▼
-Martin :3000
-   │
-   ▼
-PostGIS
-   │
-   ▼
-bio.parcelles
-```
+Displaying every parcel at national scale would produce an extremely dense visualization.
 
-Martin renvoie une tuile MVT correspondant à la zone actuellement visible.
-
----
-
-# 26. Limiter l'affichage avec `minZoom`
-
-Le projet utilise :
+The layer therefore only becomes visible from zoom level 8:
 
 ```javascript
 minZoom: 8
 ```
 
-Cela signifie que les parcelles ne sont affichées qu'à partir du niveau de zoom 8.
-
-Cette limitation est importante car la table contient plus d'un million de polygones.
-
-À faible niveau de zoom, afficher simultanément toutes les parcelles pourrait produire une représentation cartographique difficile à interpréter.
-
-Le réglage :
+The reduced opacity also makes the visualization easier to read:
 
 ```javascript
 fillOpacity: 0.15
 ```
 
-permet également de limiter l'effet visuel d'accumulation des polygones.
-
 ---
 
-# 27. Afficher les attributs d'une parcelle
+# 26. Display parcel attributes
 
-La propriété :
-
-```javascript
-interactive: true
-```
-
-permet de rendre les entités vectorielles interactives.
-
-On peut alors écouter l'événement `click`.
-
-Ajouter :
+VectorGrid makes the feature properties available when a feature is clicked.
 
 ```javascript
 parcelles.on('click', (e) => {
@@ -992,222 +693,290 @@ parcelles.on('click', (e) => {
 });
 ```
 
-La fonction :
+The callback uses an anonymous arrow function:
 
 ```javascript
-(e) => {
-  ...
-}
+(e) => { ... }
 ```
 
-est une **fonction fléchée anonyme** utilisée comme callback.
-
-Elle est passée directement à :
+This is a standard JavaScript callback passed to:
 
 ```javascript
 parcelles.on('click', ...)
 ```
 
----
-
-# 28. Fonctionnement du popup
-
-Lorsqu'une parcelle est sélectionnée :
-
-```text
-Clic sur une parcelle
-       │
-       ▼
-événement "click"
-       │
-       ▼
-e.layer
-       │
-       ▼
-e.layer.properties
-       │
-       ▼
-attributs de la parcelle
-       │
-       ▼
-L.popup()
-```
-
-Les propriétés de la parcelle sont parcourues avec :
-
-```javascript
-Object.entries(properties)
-```
-
-Chaque couple :
-
-```text
-clé → valeur
-```
-
-est ensuite ajouté au contenu du popup.
+The popup dynamically displays the attributes contained in the selected vector-tile feature.
 
 ---
 
-# 29. Lancer le frontend
+# 27. Complete frontend example
 
-Depuis le répertoire `frontend` :
+A minimal `frontend/index.htm` can therefore look like this:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Organic Farming Parcels — France</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #map {
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="map"></div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  </script>
+
+  <script
+    src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.min.js">
+  </script>
+
+  <script>
+
+    const map = L.map('map').setView([46.5, 2.5], 6);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+
+    const parcelles = L.vectorGrid.protobuf(
+      'http://localhost:3000/parcelles/{z}/{x}/{y}',
+      {
+        vectorTileLayerStyles: {
+          parcelles: {
+            fill: true,
+            fillOpacity: 0.15,
+            weight: 0.5
+          }
+        },
+        minZoom: 8,
+        interactive: true
+      }
+    ).addTo(map);
+
+
+    parcelles.on('click', (e) => {
+
+      const properties = e.layer.properties;
+
+      let contenu = '<strong>Parcelle</strong><br><br>';
+
+      for (const [cle, valeur] of Object.entries(properties)) {
+        contenu += `<strong>${cle}</strong> : ${valeur}<br>`;
+      }
+
+      L.popup()
+        .setLatLng(e.latlng)
+        .setContent(contenu)
+        .openOn(map);
+
+    });
+
+  </script>
+
+</body>
+
+</html>
+```
+
+---
+
+# 28. Run the frontend
+
+From the project directory:
 
 ```bash
+cd frontend
 npx serve -l 5500
 ```
 
-Le serveur web statique écoute alors sur :
+The frontend is then available at:
 
 ```text
 http://localhost:5500
 ```
 
-Ouvrir :
+The port is deliberately different from Martin:
 
 ```text
-http://localhost:5500
-```
-
-Martin continue quant à lui d'écouter sur :
-
-```text
-http://localhost:3000
+Frontend → 5500
+Martin   → 3000
+PostGIS  → 5432
 ```
 
 ---
 
-# 30. Architecture finale
+# 29. Final architecture
 
-L'architecture complète du projet est :
+Once everything is running, the complete application looks like this:
 
 ```text
-                         INTERNET
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │  data.gouv.fr │
-                    └───────┬───────┘
-                            │
-                            │ GeoPackage
-                            ▼
-              cartobio-parcelles-2025...
-                         .gpkg
-                            │
-                            │ GDAL / ogr2ogr
-                            ▼
-                 ┌─────────────────────┐
-                 │ PostgreSQL + PostGIS│
-                 │                     │
-                 │    bio.parcelles    │
-                 └──────────┬──────────┘
-                            │
-                            │ SQL / spatial data
-                            ▼
-                    ┌───────────────┐
-                    │    Martin     │
-                    │    :3000      │
-                    └───────┬───────┘
-                            │
-                            │ MVT
-                            ▼
-                    ┌───────────────┐
-                    │    Leaflet    │
-                    │ VectorGrid    │
-                    └───────┬───────┘
-                            │
-                            ▼
-                       Navigateur
-                       :5500
+                    ┌─────────────────────────┐
+                    │       GeoPackage        │
+                    │                         │
+                    │  1.23M organic parcels  │
+                    └────────────┬────────────┘
+                                 │
+                                 │ GDAL / ogr2ogr
+                                 ▼
+                    ┌─────────────────────────┐
+                    │ PostgreSQL + PostGIS    │
+                    │                         │
+                    │      bio.parcelles      │
+                    │          geom           │
+                    │       GiST index        │
+                    └────────────┬────────────┘
+                                 │
+                                 │ SQL / PostGIS
+                                 ▼
+                    ┌─────────────────────────┐
+                    │         Martin          │
+                    │                         │
+                    │     Vector tiles       │
+                    │         (MVT)           │
+                    └────────────┬────────────┘
+                                 │
+                                 │ HTTP
+                                 ▼
+                    ┌─────────────────────────┐
+                    │         Leaflet         │
+                    │   + Leaflet.VectorGrid  │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+                    ┌─────────────────────────┐
+                    │       Web browser       │
+                    └─────────────────────────┘
 ```
 
 ---
 
-# 31. Rôle de chaque brique
+# 30. Role of each component
 
-| Brique | Rôle |
-|---|---|
-| GeoPackage | Fichier contenant les données géographiques d'origine |
-| GDAL | Lecture, inspection et import des données |
-| PostgreSQL | Base de données relationnelle |
-| PostGIS | Gestion des données et requêtes spatiales |
-| DBeaver | Administration et exploration de PostgreSQL |
-| Martin | Transformation des données PostGIS en tuiles vectorielles |
-| MVT | Format des tuiles vectorielles transmises au navigateur |
-| Leaflet | Bibliothèque cartographique JavaScript |
-| VectorGrid | Lecture et affichage des tuiles MVT dans Leaflet |
-| Docker | Isolation et exécution des services |
-| Docker Compose | Orchestration de PostgreSQL/PostGIS et Martin |
-| `npx serve` | Serveur HTTP local du frontend |
+### GeoPackage
+
+The original geospatial dataset.
+
+```text
+.gpkg
+```
+
+It contains the agricultural parcel geometries and their attributes.
+
+### GDAL / ogr2ogr
+
+The bridge between the GeoPackage and PostgreSQL.
+
+It is used to:
+
+- inspect the dataset
+- count features
+- import the data
+- create the PostGIS table
+- create the spatial index
+
+### PostgreSQL
+
+The relational database storing the data.
+
+### PostGIS
+
+The spatial extension that adds:
+
+- geometry types
+- spatial reference systems
+- spatial functions
+- spatial indexes
+- spatial queries
+
+### Martin
+
+The vector tile server.
+
+It reads the PostGIS data and exposes it as MVT tiles.
+
+### Leaflet
+
+The browser-side mapping library.
+
+It handles:
+
+- the map
+- the basemap
+- user interaction
+- popups
+
+### Leaflet.VectorGrid
+
+The Leaflet plugin responsible for displaying vector tiles.
+
+### Docker
+
+Runs the database and tile server in isolated containers.
 
 ---
 
-# 32. Les trois ports du projet
+# 31. Ports
 
-```text
-5432
- │
- └── PostgreSQL/PostGIS
-
-3000
- │
- └── Martin
-
-5500
- │
- └── Frontend Leaflet
-```
-
-La communication principale est :
-
-```text
-Navigateur :5500
-       │
-       │ HTTP / MVT
-       ▼
-Martin :3000
-       │
-       │ PostgreSQL
-       ▼
-PostGIS :5432
-```
+| Service | Port | Purpose |
+|---|---:|---|
+| PostgreSQL/PostGIS | `5432` | Database |
+| Martin | `3000` | Vector tile server |
+| Frontend | `5500` | Web application |
 
 ---
 
-# 33. Résumé de la mise en œuvre
+# 32. Summary
 
-Le projet suit finalement une architecture SIG web classique :
+This project demonstrates a complete GIS web pipeline:
 
 ```text
-DONNÉES
-   ↓
 GeoPackage
-   ↓
+    ↓
 GDAL
-   ↓
-BASE DE DONNÉES SPATIALE
-   ↓
-PostgreSQL + PostGIS
-   ↓
-SERVEUR DE TUILES
-   ↓
+    ↓
+PostGIS
+    ↓
 Martin
-   ↓
-TUILES VECTORIELLES
-   ↓
+    ↓
 MVT
-   ↓
-CLIENT CARTOGRAPHIQUE
-   ↓
-Leaflet + VectorGrid
+    ↓
+Leaflet.VectorGrid
+    ↓
+Leaflet
+    ↓
+Browser
 ```
 
-L'intérêt de cette architecture est de séparer clairement les responsabilités :
+The main idea is to keep each component responsible for a specific task:
 
-- le **GeoPackage** constitue la donnée source ;
-- **GDAL** permet de la transformer et de l'importer ;
-- **PostGIS** stocke et interroge les données spatiales ;
-- **Martin** sert les données sous une forme optimisée pour la cartographie web ;
-- **Leaflet** assure la visualisation et l'interaction côté navigateur.
+```text
+GDAL       → data conversion/import
+PostGIS    → spatial storage and queries
+Martin     → vector tile generation/serving
+Leaflet    → interactive web map
+```
 
-Cette séparation permet ensuite de faire évoluer le projet : requêtes spatiales PostGIS, filtrage des parcelles, agrégations par commune ou département, styles cartographiques dynamiques, différentes sources de données, ou encore remplacement de Leaflet par MapLibre GL JS ou une autre bibliothèque cartographique.
+This architecture provides a practical foundation for experimenting with larger GIS web applications and for understanding how desktop geospatial data can be transformed into data that can efficiently be displayed in a web browser.
