@@ -1,0 +1,26 @@
+flowchart TD
+    subgraph Source["Data source"]
+        GPKG[("GeoPackage .gpkg<br/>~800 MB<br/>~1 million organic parcels")]
+    end
+
+    subgraph ETL["Import (outside Docker)"]
+        GDAL["GDAL / ogr2ogr"]
+    end
+
+    subgraph DockerCompose["Docker Compose"]
+        direction TB
+        PostGIS["postgis_container<br/>PostgreSQL + PostGIS<br/>port 5432<br/>bio.parcelles table + GiST index"]
+        Martin["martin<br/>Vector tile server<br/>port 3000"]
+        PostGIS -->|"SQL / spatial read"| Martin
+    end
+
+    subgraph Frontend["Static frontend"]
+        HTML["index.htm<br/>Leaflet + Leaflet.VectorGrid<br/>served on port 5500"]
+    end
+
+    Browser(["Web browser"])
+
+    GPKG -->|"import via ogr2ogr"| GDAL
+    GDAL -->|"writes to"| PostGIS
+    Martin -->|"MVT / Vector Tiles<br/>HTTP :3000/parcelles/{z}/{x}/{y}"| HTML
+    HTML --> Browser

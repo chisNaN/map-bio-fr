@@ -1,0 +1,20 @@
+sequenceDiagram
+    actor User
+    participant Leaflet as Leaflet.VectorGrid (browser)
+    participant Martin as Martin (port 3000)
+    participant PostGIS as PostgreSQL/PostGIS (port 5432)
+
+    User->>Leaflet: Pan / zoom the map
+    Leaflet->>Leaflet: Compute visible tiles {z}/{x}/{y} (if zoom >= 8)
+    Leaflet->>Martin: GET /parcelles/{z}/{x}/{y}
+
+    Martin->>PostGIS: Spatial query (ST_AsMVT on bio.parcelles)
+    PostGIS-->>Martin: Geometries + attributes (via GiST index)
+
+    Martin-->>Leaflet: MVT tile (Protocol Buffer)
+    Leaflet->>Leaflet: Decode tile, apply style (fillOpacity 0.15, weight 0.5)
+    Leaflet-->>User: Render parcels on map
+
+    User->>Leaflet: Clicks on a parcel
+    Leaflet->>Leaflet: Read e.layer.properties (already in the received tile)
+    Leaflet-->>User: Show popup with parcel attributes
