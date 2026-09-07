@@ -284,7 +284,7 @@ map-bio-fr/
 
 Si la ressource n'est plus disponible sur data.gouv.fr, un miroir peut être utilisé :
 
-https://mega.nz/file/V58DnKqa#jkh7pUqpFCRMSJ5gPMcOl3xXjtDdM6vd318U-uztdHQ
+https://mega.nz/file/8w80nYpD#vImlxRIkJydb7I0rIuI24I_eFr4mk7c0tLbnS1J6xwU
 
 **La source officielle data.gouv.fr doit être privilégiée lorsque le fichier y est disponible.**
 

@@ -231,7 +231,7 @@ The dataset uses **EPSG:2154 (Lambert-93)**.
 
 If the resource is no longer available on data.gouv.fr, a backup mirror can be used:
 
-[MEGA backup mirror](https://mega.nz/file/V58DnKqa?utm_source=chatgpt.com#jkh7pUqpFCRMSJ5gPMcOl3xXjtDdM6vd318U-uztdHQ)
+[MEGA backup mirror](https://mega.nz/file/8w80nYpD#vImlxRIkJydb7I0rIuI24I_eFr4mk7c0tLbnS1J6xwU)
 
 **The official data.gouv.fr source should always be preferred when the file is available there.**
 
